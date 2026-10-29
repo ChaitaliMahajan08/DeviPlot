@@ -376,6 +376,19 @@ class GuildOrchestrator:
             "quality_alerts": len(mission.review_findings)
         }
 
+        # Validate test evidence integrity
+        has_tests = len(mission.test_results) > 0
+        latest_test = mission.test_results[-1] if has_tests else None
+        test_criteria = [c for c in mission.acceptance_criteria if "test" in c.description.lower()]
+        
+        if test_criteria:
+            if not latest_test or latest_test.total_count == 0 or latest_test.exit_code != 0 or latest_test.failed_count > 0:
+                outcome = VerificationOutcome.FAILED
+                summary = f"Verification failed: Automated test evidence is invalid or failing (Exit code {latest_test.exit_code if latest_test else -1}, {latest_test.passed_count if latest_test else 0}/{latest_test.total_count if latest_test else 0} passed)."
+                for tc in test_criteria:
+                    tc.status = CriterionStatus.FAIL
+                    tc.evidence = summary
+
         # Set final outcome
         if outcome == VerificationOutcome.VERIFIED and crit_summary["failed"] > 0:
             outcome = VerificationOutcome.PARTIALLY_VERIFIED

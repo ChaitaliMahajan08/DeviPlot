@@ -110,8 +110,8 @@ class ToolRegistry:
                     command=cmd,
                     status=status,
                     exit_code=res["exit_code"],
-                    output=res["stdout"],
-                    error_details=res["stderr"] if res["exit_code"] != 0 else None,
+                    output=res["stdout"] or "",
+                    error_details=res["stderr"] if res["stderr"] else None,
                     duration_ms=round(duration_ms, 2)
                 )
                 

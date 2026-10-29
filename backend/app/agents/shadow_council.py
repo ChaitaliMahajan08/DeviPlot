@@ -88,6 +88,46 @@ class ShadowCouncilReviewer(BaseAgent):
                         resolved=False
                     ))
 
+        # 4. Independent Test Evidence Verification
+        test_evidence_findings: List[ReviewFinding] = []
+        if not mission.test_results:
+            test_evidence_findings.append(ReviewFinding(
+                id=f"test_none_{uuid.uuid4().hex[:6]}",
+                severity=ReviewSeverity.CRITICAL,
+                category="verification",
+                file_path="test_suite",
+                line_number=None,
+                description="Independent Verification Failure: No automated test results recorded for mission.",
+                fix_suggestion="Execute targeted automated tests before requesting Shadow Council review.",
+                resolved=False
+            ))
+        else:
+            last_test = mission.test_results[-1]
+            if last_test.total_count == 0:
+                test_evidence_findings.append(ReviewFinding(
+                    id=f"test_zero_{uuid.uuid4().hex[:6]}",
+                    severity=ReviewSeverity.CRITICAL,
+                    category="verification",
+                    file_path=last_test.command,
+                    line_number=None,
+                    description=f"Independent Verification Failure: Latest test run '{last_test.command}' reported 0 executed tests.",
+                    fix_suggestion="Ensure test discovery finds valid test cases and executes them.",
+                    resolved=False
+                ))
+            elif last_test.exit_code != 0 or last_test.failed_count > 0:
+                test_evidence_findings.append(ReviewFinding(
+                    id=f"test_failed_{uuid.uuid4().hex[:6]}",
+                    severity=ReviewSeverity.CRITICAL,
+                    category="verification",
+                    file_path=last_test.command,
+                    line_number=None,
+                    description=f"Independent Verification Failure: Test runner exited with code {last_test.exit_code} ({last_test.failed_count}/{last_test.total_count} failed).",
+                    fix_suggestion="Resolve failing assertions before requesting final review.",
+                    resolved=False
+                ))
+
+        quality_findings.extend(test_evidence_findings)
+
         # Record findings
         mission_state_manager.record_review_findings(task_id, quality_findings, is_security=False)
         mission_state_manager.record_review_findings(task_id, security_findings, is_security=True)
@@ -129,13 +169,30 @@ class ShadowCouncilReviewer(BaseAgent):
 
             return False, security_findings, quality_findings
 
-        # If no critical security issues
+        if test_evidence_findings:
+            first_test_err = test_evidence_findings[0]
+            self.dispatch_event(
+                task_id=task_id,
+                recipient="orchestrator",
+                event_type="verification_rejection",
+                content=f"INDEPENDENT VERIFICATION REJECTED: {first_test_err.description}",
+                evidence=f"Command: {mission.test_results[-1].command if mission.test_results else 'None'}\nPassed: {mission.test_results[-1].passed_count if mission.test_results else 0}/{mission.test_results[-1].total_count if mission.test_results else 0}",
+                next_action="remedy_test_defects"
+            )
+            for cr in mission.acceptance_criteria:
+                if "test" in cr.description.lower():
+                    cr.status = CriterionStatus.FAIL
+                    cr.evidence = first_test_err.description
+            mission_state_manager.save_mission(mission)
+            return False, security_findings, quality_findings
+
+        # If no critical security or test verification issues
         self.dispatch_event(
             task_id=task_id,
             recipient="orchestrator",
             event_type="review_passed",
-            content=f"Shadow Council review passed. 0 critical vulnerabilities found, {len(quality_findings)} minor observations noted.",
-            evidence=f"Scanned {len(diff_text.splitlines())} lines of unified diff."
+            content=f"Shadow Council review passed. 0 critical vulnerabilities, valid test evidence confirmed ({mission.test_results[-1].passed_count}/{mission.test_results[-1].total_count} passing).",
+            evidence=f"Scanned {len(diff_text.splitlines())} lines of unified diff and verified exit code 0."
         )
 
         for cr in mission.acceptance_criteria:

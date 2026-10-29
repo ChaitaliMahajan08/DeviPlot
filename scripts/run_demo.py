@@ -61,9 +61,13 @@ def run_demonstration():
 
     print("\n[5] Test Execution Evidence:")
     for idx, tr in enumerate(finished.test_results, 1):
-        print(f"    Run #{idx}: Exit Code {tr.exit_code} | Passed: {tr.passed_count}/{tr.total_count} ({tr.duration_ms}ms)")
+        status_label = "FAILED (Expected)" if tr.exit_code != 0 else "PASSED"
+        print(f"    Run #{idx} [{status_label}]: Exit Code {tr.exit_code} | Passed: {tr.passed_count}/{tr.total_count} | Failed: {tr.failed_count} ({tr.duration_ms}ms)")
+        print(f"      Command: `{tr.command}`")
         if tr.failure_details:
-            print(f"      Diagnostic detail: {tr.failure_details[0]}")
+            print(f"      Diagnostic: {tr.failure_details[0]}")
+        else:
+            print(f"      Diagnostic: All {tr.passed_count} test assertions satisfied.")
 
     print("\n[6] Shadow Council Review:")
     print(f"    - Security alerts: {len(finished.security_findings)}")

@@ -50,9 +50,19 @@ class TestDevPilotGuildPipeline(unittest.TestCase):
         self.assertGreaterEqual(len(finished_mission.test_results), 2, "Must execute initial test run and re-test after repair")
         self.assertEqual(finished_mission.retry_count, 1, "Should have performed exactly 1 repair retry")
         
-        # Verify first test failed and second test passed
-        self.assertNotEqual(finished_mission.test_results[0].exit_code, 0)
-        self.assertEqual(finished_mission.test_results[-1].exit_code, 0)
+        # Verify first test failed (3 passed, 1 failed, total 4) and second test passed (4 passed, 0 failed, total 4)
+        first_run = finished_mission.test_results[0]
+        final_run = finished_mission.test_results[-1]
+        
+        self.assertNotEqual(first_run.exit_code, 0)
+        self.assertEqual(first_run.total_count, 4, "Initial run must discover and execute 4 tests")
+        self.assertEqual(first_run.passed_count, 3, "Initial run should have 3 passed tests")
+        self.assertEqual(first_run.failed_count, 1, "Initial run should have exactly 1 failing test")
+        
+        self.assertEqual(final_run.exit_code, 0)
+        self.assertEqual(final_run.total_count, 4, "Second run must discover and execute 4 tests")
+        self.assertEqual(final_run.passed_count, 4, "Second run should have all 4 passed tests")
+        self.assertEqual(final_run.failed_count, 0, "Second run should have 0 failing tests")
         
         # Verify acceptance criteria
         self.assertTrue(all(c.status == CriterionStatus.PASS for c in finished_mission.acceptance_criteria))

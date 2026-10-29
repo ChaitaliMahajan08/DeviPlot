@@ -93,8 +93,20 @@ class TestAllEvaluationScenarios(unittest.TestCase):
         self.assertEqual(finished_mission.status, MissionStatus.VERIFIED)
         self.assertGreaterEqual(len(finished_mission.test_results), 2)
         self.assertEqual(finished_mission.retry_count, 1)
-        self.assertEqual(finished_mission.test_results[0].exit_code, 1)
-        self.assertEqual(finished_mission.test_results[-1].exit_code, 0)
+        
+        # Verify genuine test metrics on both runs
+        first_run = finished_mission.test_results[0]
+        final_run = finished_mission.test_results[-1]
+        
+        self.assertEqual(first_run.exit_code, 1)
+        self.assertEqual(first_run.total_count, 4)
+        self.assertEqual(first_run.passed_count, 3)
+        self.assertEqual(first_run.failed_count, 1)
+        
+        self.assertEqual(final_run.exit_code, 0)
+        self.assertEqual(final_run.total_count, 4)
+        self.assertEqual(final_run.passed_count, 4)
+        self.assertEqual(final_run.failed_count, 0)
         print("\nScenario C (Test-Driven Recovery) passed!")
 
     def test_scenario_d_security_review(self):

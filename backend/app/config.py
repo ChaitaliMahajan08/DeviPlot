@@ -54,7 +54,7 @@ class SafetyPolicy:
     ]
 
 class Settings:
-    HOST: str = os.getenv("DEVPILOT_HOST", "127.0.0.1")
+    HOST: str = os.getenv("DEVPILOT_HOST", "0.0.0.0")
     PORT: int = int(os.getenv("DEVPILOT_PORT", 5000))
     DEBUG: bool = os.getenv("DEVPILOT_DEBUG", "True").lower() in ("true", "1")
     SECRET_KEY: str = os.getenv("DEVPILOT_SECRET_KEY", "devpilot-guild-secret-pecathon-2026")

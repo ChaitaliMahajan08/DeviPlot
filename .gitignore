@@ -18,6 +18,7 @@ ENV/
 build/
 develop-eggs/
 dist/
+!frontend/dist/
 downloads/
 eggs/
 .eggs/
@@ -44,8 +45,7 @@ pnpm-debug.log*
 
 # DevPilot runtime data & missions
 .devpilot/
-data/missions/
-data/workspaces/temp_*
+data/
 *.log
 
 # OS & Editor

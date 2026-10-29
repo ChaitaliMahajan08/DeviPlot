@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-paper: #F3F0E7;
+  --color-raised: #FBF9F3;
+  --color-graphite: #242820;
+  --color-secondary: #62665D;
+  --color-cobalt: #244FE5;
+  --color-signal: #F06A43;
+  --color-success: #237747;
+  --color-failure: #C53B34;
+  --color-line: #E2DDD1;
+  --color-code: #20241F;
+}
+
+body {
+  background-color: var(--color-paper);
+  color: var(--color-graphite);
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}

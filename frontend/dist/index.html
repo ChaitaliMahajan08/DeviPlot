@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DevPilot — The Mystic Mikado's Autonomous AI Engineering Guild</title>
+  
+  <!-- Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            paper: '#F3F0E7',
+            raised: '#FBF9F3',
+            graphite: '#242820',
+            secondary: '#62665D',
+            cobalt: '#244FE5',
+            cobaltHover: '#1B3DB8',
+            signal: '#F06A43',
+            success: '#237747',
+            failure: '#C53B34',
+            line: '#E2DDD1',
+            lineDark: '#D4CEBF',
+            codeBg: '#20241F',
+            codeText: '#E8ECE6'
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+  
+  <!-- React & Babel for zero-build fast rendering -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    body {
+      background-color: #F3F0E7;
+      color: #242820;
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+    
+    /* Drafting paper subtle grid texture */
+    .drafting-paper {
+      background-color: #F3F0E7;
+      background-image: 
+        linear-gradient(to right, rgba(226, 221, 209, 0.4) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(226, 221, 209, 0.4) 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+    
+    .atelier-panel {
+      background: #FBF9F3;
+      border: 1px solid #E2DDD1;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(36, 40, 32, 0.04);
+    }
+
+    .atelier-btn-primary {
+      background: #244FE5;
+      color: #FFFFFF;
+      font-weight: 500;
+      border-radius: 6px;
+      transition: all 0.15s ease;
+    }
+    .atelier-btn-primary:hover {
+      background: #1B3DB8;
+    }
+
+    .atelier-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Custom scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #F3F0E7;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #D4CEBF;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #62665D;
+    }
+  </style>
+</head>
+<body class="drafting-paper min-h-screen flex flex-col">
+  <div id="root" class="flex-1 flex flex-col"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // Agent Avatar Config
+    const AGENT_CONFIG = {
+      shogun: { label: 'Shogun', title: 'Strategic Planner', color: 'bg-amber-100 text-amber-900 border-amber-300', icon: 'crown' },
+      samurai: { label: 'Samurai', title: 'Developer', color: 'bg-blue-100 text-blue-900 border-blue-300', icon: 'code' },
+      sentinel: { label: 'Sentinel', title: 'Tester & Verifier', color: 'bg-emerald-100 text-emerald-900 border-emerald-300', icon: 'shield-check' },
+      shadow_council: { label: 'Shadow Council', title: 'Security & Quality', color: 'bg-purple-100 text-purple-900 border-purple-300', icon: 'eye' },
+      orchestrator: { label: 'Guild Core', title: 'Orchestrator', color: 'bg-neutral-200 text-neutral-800 border-neutral-300', icon: 'cpu' },
+      user: { label: 'User', title: 'Operator', color: 'bg-slate-200 text-slate-800 border-slate-300', icon: 'user' }
+    };
+
+    function App() {
+      const [currentTab, setCurrentTab] = useState('command_center');
+      const [missions, setMissions] = useState([]);
+      const [activeMission, setActiveMission] = useState(null);
+      const [workspaces, setWorkspaces] = useState({ default_workspace: '', fixtures: [] });
+      const [selectedWorkspace, setSelectedWorkspace] = useState('');
+      const [taskPrompt, setTaskPrompt] = useState('');
+      const [maxRetries, setMaxRetries] = useState(2);
+      const [isRunning, setIsRunning] = useState(false);
+      const [approvalModal, setApprovalModal] = useState(null);
+      const [repoFiles, setRepoFiles] = useState([]);
+      const [selectedFile, setSelectedFile] = useState(null);
+      const [fileContent, setFileContent] = useState('');
+      
+      const eventSourceRef = useRef(null);
+
+      // Load initial data
+      useEffect(() => {
+        fetchWorkspaces();
+        fetchMissions();
+      }, []);
+
+      // Fetch Workspaces & Fixtures
+      const fetchWorkspaces = async () => {
+        try {
+          const res = await fetch('/api/workspaces');
+          const data = await res.json();
+          setWorkspaces(data);
+          if (!selectedWorkspace) {
+            setSelectedWorkspace(data.default_workspace);
+          }
+        } catch (e) {
+          console.error('Failed to load workspaces:', e);
+        }
+      };
+
+      // Fetch Mission List
+      const fetchMissions = async () => {
+        try {
+          const res = await fetch('/api/missions');
+          const data = await res.json();
+          setMissions(data);
+          if (data.length > 0 && !activeMission) {
+            loadMission(data[0].task_id);
+          }
+        } catch (e) {
+          console.error('Failed to load missions:', e);
+        }
+      };
+
+      // Load Single Mission & attach SSE stream
+      const loadMission = async (taskId) => {
+        try {
+          const res = await fetch(`/api/missions/${taskId}`);
+          const data = await res.json();
+          setActiveMission(data);
+          checkPendingApprovals(data);
+          listenToMissionEvents(taskId);
+        } catch (e) {
+          console.error(`Failed to load mission ${taskId}:`, e);
+        }
+      };
+
+      // SSE Listener
+      const listenToMissionEvents = (taskId) => {
+        if (eventSourceRef.current) {
+          eventSourceRef.current.close();
+        }
+
+        const es = new EventSource(`/api/missions/${taskId}/events`);
+        eventSourceRef.current = es;
+
+        es.onmessage = (event) => {
+          try {
+            const payload = JSON.parse(event.data);
+            if (payload.type === 'SNAPSHOT') {
+              setActiveMission(payload.mission);
+              checkPendingApprovals(payload.mission);
+            } else if (payload.type === 'AGENT_EVENT') {
+              setActiveMission(prev => prev ? {
+                ...prev,
+                agent_events: [...prev.agent_events, payload.event]
+              } : prev);
+            } else if (payload.type === 'TOOL_CALL') {
+              setActiveMission(prev => prev ? {
+                ...prev,
+                tool_calls: [...prev.tool_calls, payload.record]
+              } : prev);
+            } else if (payload.type === 'STATUS_CHANGE') {
+              setActiveMission(prev => prev ? {
+                ...prev,
+                status: payload.status
+              } : prev);
+              if (['VERIFIED', 'FAILED', 'CANCELLED', 'PARTIALLY_VERIFIED'].includes(payload.status)) {
+                setIsRunning(false);
+              }
+            } else if (payload.type === 'MISSION_COMPLETED') {
+              setIsRunning(false);
+              fetchMissions();
+              // reload latest full mission
+              fetch(`/api/missions/${taskId}`).then(r => r.json()).then(m => {
+                setActiveMission(m);
+                checkPendingApprovals(m);
+              });
+            }
+          } catch (err) {
+            console.error('SSE Error:', err);
+          }
+        };
+
+        es.onerror = () => {
+          // Keep alive or reconnect handled by browser
+        };
+      };
+
+      // Check for pending human approvals
+      const checkPendingApprovals = (mission) => {
+        if (!mission || !mission.human_approvals) return;
+        const pending = mission.human_approvals.find(a => a.status === 'PENDING');
+        if (pending) {
+          setApprovalModal(pending);
+        } else {
+          setApprovalModal(null);
+        }
+      };
+
+      // Submit new mission
+      const handleStartMission = async () => {
+        if (!taskPrompt.trim()) return;
+        setIsRunning(true);
+        try {
+          const res = await fetch('/api/missions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              user_request: taskPrompt,
+              workspace_path: selectedWorkspace,
+              max_retries: maxRetries,
+              auto_start: true
+            })
+          });
+          const newMission = await res.json();
+          setActiveMission(newMission);
+          setTaskPrompt('');
+          fetchMissions();
+          listenToMissionEvents(newMission.task_id);
+        } catch (e) {
+          console.error('Error starting mission:', e);
+          setIsRunning(false);
+        }
+      };
+
+      // Cancel mission
+      const handleCancelMission = async () => {
+        if (!activeMission) return;
+        try {
+          await fetch(`/api/missions/${activeMission.task_id}/cancel`, { method: 'POST' });
+          setIsRunning(false);
+        } catch (e) {
+          console.error('Error cancelling mission:', e);
+        }
+      };
+
+      // Handle Human Approval Gate
+      const handleApprovalDecision = async (approved) => {
+        if (!approvalModal || !activeMission) return;
+        try {
+          await fetch(`/api/missions/${activeMission.task_id}/approvals/${approvalModal.id}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ approved, decided_by: 'Human Operator' })
+          });
+          setApprovalModal(null);
+          // Refresh mission
+          loadMission(activeMission.task_id);
+        } catch (e) {
+          console.error('Approval submission error:', e);
+        }
+      };
+
+      // Reset Scenario Fixture helper
+      const handleLoadScenarioFixture = async (fixtureId, promptText) => {
+        try {
+          const res = await fetch('/api/workspaces/reset-fixture', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fixture_id: fixtureId })
+          });
+          const data = await res.json();
+          setSelectedWorkspace(data.workspace_path);
+          setTaskPrompt(promptText);
+        } catch (e) {
+          console.error('Error resetting fixture:', e);
+        }
+      };
+
+      // Load files for repo explorer
+      const handleExploreWorkspace = async (ws) => {
+        try {
+          const res = await fetch(`/api/workspaces/files?workspace=${encodeURIComponent(ws || selectedWorkspace)}`);
+          const files = await res.json();
+          setRepoFiles(files);
+        } catch (e) {
+          console.error('Failed to load repo files:', e);
+        }
+      };
+
+      const handleReadFile = async (filePath) => {
+        try {
+          setSelectedFile(filePath);
+          const res = await fetch(`/api/workspaces/file-content?workspace=${encodeURIComponent(selectedWorkspace)}&path=${encodeURIComponent(filePath)}`);
+          const data = await res.json();
+          setFileContent(data.content || '');
+        } catch (e) {
+          console.error('Error reading file:', e);
+        }
+      };
+
+      return (
+        <div class="flex-1 flex flex-col h-screen overflow-hidden">
+          {/* Header */}
+          <header class="bg-raised border-b border-line px-6 py-3 flex items-center justify-between shrink-0">
+            <div class="flex items-center space-x-3">
+              <div class="w-8 h-8 rounded bg-graphite flex items-center justify-center text-paper font-bold font-mono text-sm tracking-wider">
+                DP
+              </div>
+              <div>
+                <div class="flex items-center space-x-2">
+                  <h1 class="text-base font-bold text-graphite tracking-tight">DevPilot</h1>
+                  <span class="text-xs px-2 py-0.5 rounded bg-line text-secondary font-mono">PS-001</span>
+                </div>
+                <p class="text-xs text-secondary italic">“Plan like a Shogun. Build like a Samurai. Test like a Sentinel.”</p>
+              </div>
+            </div>
+
+            {/* Navigation Tabs */}
+            <nav class="flex items-center space-x-1 bg-paper p-1 rounded-md border border-line">
+              {[
+                { id: 'command_center', label: 'Command Center', icon: 'terminal' },
+                { id: 'history', label: 'Mission History', icon: 'history' },
+                { id: 'explorer', label: 'Repo Explorer', icon: 'folder-git' },
+                { id: 'review', label: 'Code Review', icon: 'git-pull-request' },
+                { id: 'test_lab', label: 'Test Lab', icon: 'flask-conical' },
+                { id: 'settings', label: 'Settings', icon: 'settings' }
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setCurrentTab(tab.id);
+                    if (tab.id === 'explorer') handleExploreWorkspace(selectedWorkspace);
+                  }}
+                  class={`px-3 py-1.5 text-xs font-medium rounded transition flex items-center space-x-1.5 ${
+                    currentTab === tab.id
+                      ? 'bg-raised text-graphite shadow-sm border border-line'
+                      : 'text-secondary hover:text-graphite'
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                </button>
+              ))}
+            </nav>
+
+            {/* Workspace & Status indicator */}
+            <div class="flex items-center space-x-3 text-xs">
+              <div class="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-paper border border-line">
+                <span class="w-2 h-2 rounded-full bg-success"></span>
+                <span class="font-mono text-secondary truncate max-w-xs">{selectedWorkspace ? selectedWorkspace.split(/[\\/]/).pop() : 'Default Workspace'}</span>
+              </div>
+              {activeMission && (
+                <div class={`atelier-badge ${
+                  activeMission.status === 'VERIFIED' ? 'bg-emerald-100 text-success border border-emerald-300' :
+                  activeMission.status === 'FAILED' ? 'bg-red-100 text-failure border border-red-300' :
+                  activeMission.status === 'WAITING_FOR_APPROVAL' ? 'bg-amber-100 text-signal border border-amber-300 animate-pulse' :
+                  'bg-blue-100 text-cobalt border border-blue-300'
+                }`}>
+                  {activeMission.status}
+                </div>
+              )}
+            </div>
+          </header>
+
+          {/* Main View Container */}
+          <main class="flex-1 overflow-hidden p-6 flex flex-col">
+            {currentTab === 'command_center' && (
+              <CommandCenterView
+                activeMission={activeMission}
+                taskPrompt={taskPrompt}
+                setTaskPrompt={setTaskPrompt}
+                selectedWorkspace={selectedWorkspace}
+                setSelectedWorkspace={setSelectedWorkspace}
+                workspaces={workspaces}
+                handleStartMission={handleStartMission}
+                handleCancelMission={handleCancelMission}
+                isRunning={isRunning}
+                handleLoadScenarioFixture={handleLoadScenarioFixture}
+              />
+            )}
+
+            {currentTab === 'history' && (
+              <MissionHistoryView
+                missions={missions}
+                activeMission={activeMission}
+                onSelectMission={(id) => {
+                  loadMission(id);
+                  setCurrentTab('command_center');
+                }}
+              />
+            )}
+
+            {currentTab === 'explorer' && (
+              <RepositoryExplorerView
+                repoFiles={repoFiles}
+                selectedFile={selectedFile}
+                fileContent={fileContent}
+                onSelectFile={handleReadFile}
+                selectedWorkspace={selectedWorkspace}
+                onRefresh={() => handleExploreWorkspace(selectedWorkspace)}
+              />
+            )}
+
+            {currentTab === 'review' && (
+              <CodeReviewView activeMission={activeMission} />
+            )}
+
+            {currentTab === 'test_lab' && (
+              <TestLabView activeMission={activeMission} />
+            )}
+
+            {currentTab === 'settings' && (
+              <SettingsView
+                maxRetries={maxRetries}
+                setMaxRetries={setMaxRetries}
+                selectedWorkspace={selectedWorkspace}
+                setSelectedWorkspace={setSelectedWorkspace}
+                workspaces={workspaces}
+              />
+            )}
+          </main>
+
+          {/* Human Approval Modal Gate */}
+          {approvalModal && (
+            <div class="fixed inset-0 bg-graphite/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+              <div class="atelier-panel max-w-lg w-full p-6 shadow-xl border-2 border-signal">
+                <div class="flex items-center space-x-2 text-signal mb-3">
+                  <span class="atelier-badge bg-amber-100 text-signal border border-signal">HUMAN APPROVAL GATE REQUIRED</span>
+                </div>
+                <h3 class="text-base font-bold text-graphite mb-2">Consequential Action Approval</h3>
+                <p class="text-sm text-secondary mb-4">{approvalModal.description}</p>
+                
+                {approvalModal.details && (
+                  <div class="bg-paper p-3 rounded border border-line font-mono text-xs text-graphite mb-5 space-y-1">
+                    {Object.entries(approvalModal.details).map(([k, v]) => (
+                      <div key={k}><strong class="text-secondary">{k}:</strong> {String(v)}</div>
+                    ))}
+                  </div>
+                )}
+
+                <div class="flex justify-end space-x-3">
+                  <button
+                    onClick={() => handleApprovalDecision(false)}
+                    class="px-4 py-2 text-xs font-semibold rounded bg-red-100 text-failure border border-red-300 hover:bg-red-200 transition"
+                  >
+                    Reject Operation
+                  </button>
+                  <button
+                    onClick={() => handleApprovalDecision(true)}
+                    class="px-4 py-2 text-xs font-semibold rounded bg-cobalt text-white hover:bg-cobaltHover transition"
+                  >
+                    Authorize & Proceed
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ----------------- Command Center View -----------------
+    function CommandCenterView({
+      activeMission,
+      taskPrompt,
+      setTaskPrompt,
+      selectedWorkspace,
+      setSelectedWorkspace,
+      workspaces,
+      handleStartMission,
+      handleCancelMission,
+      isRunning,
+      handleLoadScenarioFixture
+    }) {
+      return (
+        <div class="flex-1 flex flex-col space-y-4 overflow-hidden">
+          {/* Top Panel: Task Composer & Evaluation Scenario Presets */}
+          <div class="atelier-panel p-4 shrink-0">
+            <div class="flex flex-col space-y-3">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-2 text-xs font-semibold text-secondary uppercase tracking-wider">
+                  <span>Task Directive</span>
+                </div>
+                {/* Scenario Presets */}
+                <div class="flex items-center space-x-1.5 text-xs">
+                  <span class="text-secondary font-medium mr-1">Load Scenario:</span>
+                  <button
+                    onClick={() => handleLoadScenarioFixture('scenario_a_feature', 'Add calculate_fibonacci(n) to math_utils and verify with tests.')}
+                    class="px-2 py-0.5 rounded bg-paper border border-line text-graphite hover:border-cobalt transition font-mono text-[11px]"
+                  >
+                    A: Feature
+                  </button>
+                  <button
+                    onClick={() => handleLoadScenarioFixture('scenario_b_bug', 'Fix the VIP tier calculation in discount_service so tests pass.')}
+                    class="px-2 py-0.5 rounded bg-paper border border-line text-graphite hover:border-cobalt transition font-mono text-[11px]"
+                  >
+                    B: Seeded Bug
+                  </button>
+                  <button
+                    onClick={() => handleLoadScenarioFixture('scenario_c_recovery', 'Fix boundary bug in age_validator so that age 18 is recognized as legal.')}
+                    class="px-2 py-0.5 rounded bg-paper border border-line text-graphite hover:border-cobalt transition font-mono text-[11px]"
+                  >
+                    C: Test-Driven Recovery
+                  </button>
+                  <button
+                    onClick={() => handleLoadScenarioFixture('scenario_d_security', 'Refactor expression_evaluator to eliminate unsafe eval vulnerability.')}
+                    class="px-2 py-0.5 rounded bg-paper border border-line text-graphite hover:border-cobalt transition font-mono text-[11px]"
+                  >
+                    D: Security Audit
+                  </button>
+                  <button
+                    onClick={() => { setTaskPrompt('do something'); }}
+                    class="px-2 py-0.5 rounded bg-paper border border-line text-graphite hover:border-cobalt transition font-mono text-[11px]"
+                  >
+                    E: Ambiguous
+                  </button>
+                </div>
+              </div>
+
+              {/* Composer Input */}
+              <div class="flex space-x-3">
+                <div class="flex-1 relative">
+                  <input
+                    type="text"
+                    value={taskPrompt}
+                    onChange={(e) => setTaskPrompt(e.target.value)}
+                    placeholder="Enter software requirement, bug description, or test specification..."
+                    class="w-full bg-paper border border-line rounded px-4 py-2.5 text-sm text-graphite focus:outline-none focus:border-cobalt font-mono placeholder:text-secondary/60"
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleStartMission(); }}
+                  />
+                </div>
+                <div class="flex space-x-2">
+                  <button
+                    onClick={handleStartMission}
+                    disabled={isRunning || !taskPrompt.trim()}
+                    class="atelier-btn-primary px-5 py-2.5 text-xs font-semibold flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span>{isRunning ? 'Guild Active...' : 'Dispatch Guild'}</span>
+                  </button>
+                  {isRunning && (
+                    <button
+                      onClick={handleCancelMission}
+                      class="px-3 py-2.5 text-xs font-semibold rounded bg-red-100 text-failure border border-red-300 hover:bg-red-200 transition"
+                    >
+                      Halt
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Workflow Pipeline Visualization */}
+          {activeMission && (
+            <div class="atelier-panel px-4 py-2.5 shrink-0 flex items-center justify-between text-xs">
+              <div class="flex items-center space-x-4">
+                <span class="font-bold text-graphite uppercase tracking-wide text-[11px]">Workflow Phase:</span>
+                <div class="flex items-center space-x-2">
+                  {[
+                    { label: 'Recon & Plan', agent: 'shogun' },
+                    { label: 'Craft Code', agent: 'samurai' },
+                    { label: 'Automated Tests', agent: 'sentinel' },
+                    { label: 'Security & Quality', agent: 'shadow_council' },
+                    { label: 'Verification', agent: 'orchestrator' }
+                  ].map((step, idx) => (
+                    <div key={idx} class="flex items-center space-x-1.5">
+                      <div class={`px-2.5 py-1 rounded border text-[11px] font-medium ${
+                        activeMission.status === 'VERIFIED' ? 'bg-emerald-50 border-emerald-300 text-success' :
+                        activeMission.status === 'FAILED' ? 'bg-red-50 border-red-300 text-failure' :
+                        'bg-paper border-line text-secondary'
+                      }`}>
+                        {step.label}
+                      </div>
+                      {idx < 4 && <span class="text-lineDark">→</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {activeMission.retry_count > 0 && (
+                <div class="flex items-center space-x-1 text-signal font-mono text-[11px]">
+                  <span class="w-2 h-2 rounded-full bg-signal animate-ping"></span>
+                  <span>Correction Loop Attempt #{activeMission.retry_count} (Limit: {activeMission.max_retries})</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Middle Section: Split 3 Columns */}
+          <div class="flex-1 grid grid-cols-12 gap-4 min-h-0">
+            {/* Left Col: Acceptance Criteria & Planned Tasks (3 cols) */}
+            <div class="col-span-4 flex flex-col space-y-4 min-h-0">
+              {/* Acceptance Criteria */}
+              <div class="atelier-panel p-4 flex-1 flex flex-col min-h-0">
+                <div class="flex items-center justify-between pb-2 border-b border-line mb-3">
+                  <h3 class="text-xs font-bold text-graphite uppercase tracking-wider">Acceptance Criteria</h3>
+                  <span class="text-[10px] text-secondary font-mono">
+                    {activeMission?.acceptance_criteria?.filter(c => c.status === 'PASS').length || 0} / {activeMission?.acceptance_criteria?.length || 0} PASS
+                  </span>
+                </div>
+                <div class="flex-1 overflow-y-auto space-y-2 pr-1">
+                  {activeMission?.acceptance_criteria?.length ? (
+                    activeMission.acceptance_criteria.map((c) => (
+                      <div key={c.id} class="p-2.5 rounded bg-paper border border-line text-xs">
+                        <div class="flex items-start justify-between space-x-2 mb-1">
+                          <span class="font-mono text-[10px] font-semibold text-secondary">{c.id}</span>
+                          <span class={`atelier-badge text-[9px] px-1.5 py-0.5 ${
+                            c.status === 'PASS' ? 'bg-emerald-100 text-success border border-emerald-300' :
+                            c.status === 'FAIL' ? 'bg-red-100 text-failure border border-red-300' :
+                            'bg-neutral-100 text-secondary border border-line'
+                          }`}>
+                            {c.status}
+                          </span>
+                        </div>
+                        <p class="text-graphite text-[11px] leading-relaxed">{c.description}</p>
+                        {c.evidence && (
+                          <div class="mt-1.5 p-1.5 rounded bg-white/60 border border-line/60 font-mono text-[10px] text-secondary">
+                            {c.evidence}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <div class="h-full flex items-center justify-center text-secondary text-xs italic">
+                      Awaiting mission initialization...
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Planned Tasks */}
+              <div class="atelier-panel p-4 h-48 flex flex-col min-h-0">
+                <div class="flex items-center justify-between pb-2 border-b border-line mb-2">
+                  <h3 class="text-xs font-bold text-graphite uppercase tracking-wider">Execution Plan</h3>
+                  <span class="text-[10px] text-secondary font-mono">v{activeMission?.plan_version || 1}</span>
+                </div>
+                <div class="flex-1 overflow-y-auto space-y-1.5 pr-1">
+                  {activeMission?.plan?.length ? (
+                    activeMission.plan.map(t => (
+                      <div key={t.id} class="flex items-center justify-between p-2 rounded bg-paper border border-line text-xs">
+                        <div class="flex items-center space-x-2 truncate">
+                          <span class="font-mono text-[10px] text-secondary">{t.id}</span>
+                          <span class="font-medium text-graphite text-[11px] truncate">{t.title}</span>
+                        </div>
+                        <span class="text-[10px] px-1.5 py-0.5 rounded bg-line text-secondary uppercase font-mono">{t.assigned_agent}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div class="h-full flex items-center justify-center text-secondary text-xs italic">
+                      No plan generated yet.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Center Col: Live Agent Activity Stream (5 cols) */}
+            <div class="col-span-5 atelier-panel p-4 flex flex-col min-h-0">
+              <div class="flex items-center justify-between pb-2 border-b border-line mb-3">
+                <div class="flex items-center space-x-2">
+                  <h3 class="text-xs font-bold text-graphite uppercase tracking-wider">Guild Coordination Stream</h3>
+                  <span class="w-2 h-2 rounded-full bg-cobalt animate-pulse"></span>
+                </div>
+                <span class="text-[10px] text-secondary font-mono">
+                  {activeMission?.agent_events?.length || 0} events
+                </span>
+              </div>
+              <div class="flex-1 overflow-y-auto space-y-3 pr-1">
+                {activeMission?.agent_events?.length ? (
+                  activeMission.agent_events.map(e => {
+                    const cfg = AGENT_CONFIG[e.sender] || AGENT_CONFIG.orchestrator;
+                    return (
+                      <div key={e.id} class="p-3 rounded bg-paper border border-line text-xs space-y-1.5">
+                        <div class="flex items-center justify-between">
+                          <div class="flex items-center space-x-1.5">
+                            <span class={`atelier-badge text-[10px] border ${cfg.color}`}>
+                              {cfg.label}
+                            </span>
+                            <span class="text-[10px] text-secondary">→ {e.recipient}</span>
+                          </div>
+                          <span class="text-[10px] text-secondary font-mono">
+                            {e.timestamp ? new Date(e.timestamp).toLocaleTimeString() : ''}
+                          </span>
+                        </div>
+                        <p class="text-graphite text-xs leading-normal">{e.content}</p>
+                        {e.evidence && (
+                          <pre class="p-2 rounded bg-codeBg text-codeText font-mono text-[10px] overflow-x-auto whitespace-pre-wrap max-h-36">
+                            {e.evidence}
+                          </pre>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div class="h-full flex items-center justify-center text-secondary text-xs italic">
+                    Ready to execute autonomous directives.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right Col: Tool Execution & Verification Report (3 cols) */}
+            <div class="col-span-3 flex flex-col space-y-4 min-h-0">
+              {/* Tool Execution Evidence */}
+              <div class="atelier-panel p-4 flex-1 flex flex-col min-h-0">
+                <div class="flex items-center justify-between pb-2 border-b border-line mb-2">
+                  <h3 class="text-xs font-bold text-graphite uppercase tracking-wider">Tool Audit Log</h3>
+                  <span class="text-[10px] text-secondary font-mono">{activeMission?.tool_calls?.length || 0} calls</span>
+                </div>
+                <div class="flex-1 overflow-y-auto space-y-2 pr-1">
+                  {activeMission?.tool_calls?.length ? (
+                    activeMission.tool_calls.map(tc => (
+                      <div key={tc.id} class="p-2 rounded bg-paper border border-line text-xs font-mono">
+                        <div class="flex items-center justify-between text-[10px] text-secondary mb-1">
+                          <span class="font-bold text-cobalt">{tc.tool_name}</span>
+                          <span>{tc.duration_ms}ms</span>
+                        </div>
+                        <div class="text-[11px] text-graphite truncate">{tc.input_summary}</div>
+                        <div class="flex items-center justify-between mt-1 text-[9px]">
+                          <span class={`px-1 rounded ${tc.status === 'SUCCESS' ? 'text-success bg-emerald-50' : 'text-failure bg-red-50'}`}>
+                            {tc.status}
+                          </span>
+                          {tc.exit_code !== null && (
+                            <span class="text-secondary">code: {tc.exit_code}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div class="h-full flex items-center justify-center text-secondary text-xs italic">
+                      No tool executions recorded.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Final Verification Report Badge */}
+              <div class="atelier-panel p-4 h-48 flex flex-col min-h-0">
+                <div class="flex items-center justify-between pb-2 border-b border-line mb-2">
+                  <h3 class="text-xs font-bold text-graphite uppercase tracking-wider">Mission Outcome</h3>
+                  <span class={`atelier-badge text-[9px] ${
+                    activeMission?.final_verification?.outcome === 'VERIFIED' ? 'bg-emerald-100 text-success border border-emerald-300' :
+                    activeMission?.final_verification?.outcome === 'FAILED' ? 'bg-red-100 text-failure border border-red-300' :
+                    'bg-neutral-100 text-secondary'
+                  }`}>
+                    {activeMission?.final_verification?.outcome || 'PENDING'}
+                  </span>
+                </div>
+                <div class="flex-1 overflow-y-auto text-xs text-secondary leading-relaxed">
+                  {activeMission?.final_verification ? (
+                    <div class="space-y-1.5">
+                      <p class="text-graphite font-medium text-[11px]">{activeMission.final_verification.summary}</p>
+                      <div class="text-[10px] font-mono space-y-0.5 text-secondary">
+                        <div>Tests Run: {activeMission.final_verification.tests_summary?.runs_count || 0}</div>
+                        <div>Criteria: {activeMission.final_verification.criteria_summary?.passed || 0}/{activeMission.final_verification.criteria_summary?.total || 0} Passed</div>
+                        <div>Security Findings: {activeMission.final_verification.reviews_summary?.security_alerts || 0}</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div class="h-full flex items-center justify-center italic text-secondary text-[11px]">
+                      Outcome pending completion of guild lifecycle.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ----------------- Mission History View -----------------
+    function MissionHistoryView({ missions, activeMission, onSelectMission }) {
+      return (
+        <div class="atelier-panel flex-1 p-6 flex flex-col min-h-0">
+          <div class="flex items-center justify-between pb-3 border-b border-line mb-4">
+            <div>
+              <h2 class="text-base font-bold text-graphite">Runs & Mission History</h2>
+              <p class="text-xs text-secondary">Persistent log of autonomous engineering missions with honest evidence.</p>
+            </div>
+            <span class="text-xs font-mono text-secondary">{missions.length} Total Runs</span>
+          </div>
+
+          <div class="flex-1 overflow-y-auto">
+            <table class="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr class="border-b border-line text-secondary uppercase tracking-wider text-[10px]">
+                  <th class="py-2.5 px-3">Mission ID</th>
+                  <th class="py-2.5 px-3">Task Directive</th>
+                  <th class="py-2.5 px-3">Status</th>
+                  <th class="py-2.5 px-3">Criteria</th>
+                  <th class="py-2.5 px-3">Retries</th>
+                  <th class="py-2.5 px-3">Date</th>
+                  <th class="py-2.5 px-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-line">
+                {missions.map(m => (
+                  <tr key={m.task_id} class={`hover:bg-paper/80 transition ${activeMission?.task_id === m.task_id ? 'bg-paper' : ''}`}>
+                    <td class="py-3 px-3 font-mono font-semibold text-cobalt">{m.task_id}</td>
+                    <td class="py-3 px-3 text-graphite font-medium max-w-md truncate">{m.user_request}</td>
+                    <td class="py-3 px-3">
+                      <span class={`atelier-badge text-[9px] ${
+                        m.status === 'VERIFIED' ? 'bg-emerald-100 text-success border border-emerald-300' :
+                        m.status === 'FAILED' ? 'bg-red-100 text-failure border border-red-300' :
+                        'bg-blue-100 text-cobalt border border-blue-300'
+                      }`}>
+                        {m.status}
+                      </span>
+                    </td>
+                    <td class="py-3 px-3 font-mono text-secondary">
+                      {m.acceptance_criteria.filter(c => c.status === 'PASS').length} / {m.acceptance_criteria.length}
+                    </td>
+                    <td class="py-3 px-3 font-mono text-secondary">{m.retry_count}</td>
+                    <td class="py-3 px-3 text-secondary font-mono text-[10px]">
+                      {new Date(m.created_at).toLocaleString()}
+                    </td>
+                    <td class="py-3 px-3 text-right">
+                      <button
+                        onClick={() => onSelectMission(m.task_id)}
+                        class="px-2.5 py-1 text-[11px] font-semibold rounded bg-paper border border-line text-graphite hover:border-cobalt transition"
+                      >
+                        Inspect
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
+    // ----------------- Repository Explorer View -----------------
+    function RepositoryExplorerView({ repoFiles, selectedFile, fileContent, onSelectFile, selectedWorkspace, onRefresh }) {
+      return (
+        <div class="atelier-panel flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div class="p-4 border-b border-line flex items-center justify-between shrink-0">
+            <div>
+              <h2 class="text-sm font-bold text-graphite">Workspace Repository Explorer</h2>
+              <p class="text-xs text-secondary font-mono truncate max-w-xl">{selectedWorkspace}</p>
+            </div>
+            <button
+              onClick={onRefresh}
+              class="px-3 py-1.5 text-xs font-semibold rounded bg-paper border border-line text-graphite hover:border-cobalt transition"
+            >
+              Refresh Files
+            </button>
+          </div>
+
+          <div class="flex-1 flex min-h-0">
+            {/* File List */}
+            <div class="w-1/3 border-r border-line p-3 overflow-y-auto space-y-1">
+              {repoFiles.map(f => (
+                <div
+                  key={f.path}
+                  onClick={() => !f.is_dir && onSelectFile(f.path)}
+                  class={`px-2.5 py-1.5 rounded text-xs font-mono flex items-center justify-between cursor-pointer transition ${
+                    selectedFile === f.path ? 'bg-cobalt text-white' : 'hover:bg-paper text-graphite'
+                  } ${f.is_dir ? 'font-semibold text-secondary' : ''}`}
+                >
+                  <span class="truncate">{f.is_dir ? '📁 ' : '📄 '} {f.path}</span>
+                  {!f.is_dir && <span class="text-[10px] opacity-70">{(f.size / 1024).toFixed(1)}k</span>}
+                </div>
+              ))}
+            </div>
+
+            {/* Code Inspector */}
+            <div class="w-2/3 flex flex-col bg-codeBg text-codeText min-h-0">
+              <div class="px-4 py-2 bg-black/30 border-b border-white/10 font-mono text-xs flex items-center justify-between">
+                <span>{selectedFile || 'Select a file to inspect'}</span>
+                {fileContent && <span class="text-secondary text-[10px]">{fileContent.split('\n').length} lines</span>}
+              </div>
+              <div class="flex-1 p-4 overflow-y-auto font-mono text-xs leading-relaxed">
+                {fileContent ? (
+                  <pre class="whitespace-pre-wrap">{fileContent}</pre>
+                ) : (
+                  <div class="h-full flex items-center justify-center text-secondary italic">
+                    No file selected.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ----------------- Code Review View -----------------
+    function CodeReviewView({ activeMission }) {
+      const diff = activeMission?.diff || '';
+      const findings = [...(activeMission?.security_findings || []), ...(activeMission?.review_findings || [])];
+
+      return (
+        <div class="atelier-panel flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div class="p-4 border-b border-line flex items-center justify-between shrink-0">
+            <div>
+              <h2 class="text-sm font-bold text-graphite">Shadow Council Code & Security Review</h2>
+              <p class="text-xs text-secondary">Diff inspection, credential scanning, and pattern analysis.</p>
+            </div>
+            <div class="flex items-center space-x-2 text-xs">
+              <span class="atelier-badge bg-purple-100 text-purple-900 border border-purple-300">
+                {findings.length} Council Findings
+              </span>
+            </div>
+          </div>
+
+          <div class="flex-1 grid grid-cols-12 min-h-0">
+            {/* Diff Viewer */}
+            <div class="col-span-8 border-r border-line flex flex-col bg-codeBg text-codeText min-h-0">
+              <div class="px-4 py-2 bg-black/30 border-b border-white/10 font-mono text-xs text-secondary flex items-center justify-between">
+                <span>Unified Git Diff</span>
+                <span>{activeMission?.changed_files?.join(', ') || 'No modifications'}</span>
+              </div>
+              <div class="flex-1 p-4 overflow-y-auto font-mono text-xs leading-relaxed space-y-0.5">
+                {diff ? (
+                  diff.split('\n').map((line, idx) => {
+                    const isAdd = line.startsWith('+') && !line.startsWith('+++');
+                    const isDel = line.startsWith('-') && !line.startsWith('---');
+                    const isMeta = line.startsWith('@') || line.startsWith('diff');
+                    return (
+                      <div
+                        key={idx}
+                        class={`px-2 py-0.5 rounded-sm ${
+                          isAdd ? 'bg-emerald-950/60 text-emerald-300' :
+                          isDel ? 'bg-red-950/60 text-red-300' :
+                          isMeta ? 'text-sky-400 font-semibold' : 'text-codeText'
+                        }`}
+                      >
+                        {line}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div class="h-full flex items-center justify-center text-secondary italic">
+                    Workspace is clean. No git diff found.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Findings List */}
+            <div class="col-span-4 p-4 overflow-y-auto space-y-3">
+              <h3 class="text-xs font-bold text-graphite uppercase tracking-wider mb-2">Findings & Alerts</h3>
+              {findings.length ? (
+                findings.map(f => (
+                  <div key={f.id} class="p-3 rounded bg-paper border border-line text-xs space-y-1.5">
+                    <div class="flex items-center justify-between">
+                      <span class={`atelier-badge text-[9px] ${
+                        f.severity === 'CRITICAL' ? 'bg-red-100 text-failure border border-red-300' :
+                        f.severity === 'HIGH' ? 'bg-orange-100 text-signal border border-orange-300' :
+                        'bg-yellow-100 text-amber-800 border border-yellow-300'
+                      }`}>
+                        {f.severity}
+                      </span>
+                      <span class="font-mono text-[10px] text-secondary">line {f.line_number || 'N/A'}</span>
+                    </div>
+                    <p class="text-graphite font-medium text-[11px]">{f.description}</p>
+                    {f.fix_suggestion && (
+                      <div class="p-1.5 rounded bg-white border border-line text-[10px] text-secondary font-mono">
+                        💡 {f.fix_suggestion}
+                      </div>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div class="h-full flex items-center justify-center text-secondary text-xs italic">
+                  Clean review. No vulnerabilities detected.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ----------------- Test Lab View -----------------
+    function TestLabView({ activeMission }) {
+      const tests = activeMission?.test_results || [];
+
+      return (
+        <div class="atelier-panel flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div class="p-4 border-b border-line flex items-center justify-between shrink-0">
+            <div>
+              <h2 class="text-sm font-bold text-graphite">Sentinel Test Verification Lab</h2>
+              <p class="text-xs text-secondary">Real automated test runner execution evidence and exit codes.</p>
+            </div>
+            <span class="text-xs font-mono text-secondary">{tests.length} Execution Runs</span>
+          </div>
+
+          <div class="flex-1 p-6 overflow-y-auto space-y-4">
+            {tests.length ? (
+              tests.map((t, idx) => (
+                <div key={t.id} class="atelier-panel p-4 space-y-3">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-2">
+                      <span class="font-mono text-xs font-bold text-graphite">Run #{idx + 1}: `{t.command}`</span>
+                      <span class={`atelier-badge text-[9px] ${
+                        t.exit_code === 0 ? 'bg-emerald-100 text-success border border-emerald-300' : 'bg-red-100 text-failure border border-red-300'
+                      }`}>
+                        exit code {t.exit_code}
+                      </span>
+                    </div>
+                    <span class="text-xs font-mono text-secondary">{t.duration_ms}ms</span>
+                  </div>
+
+                  <div class="grid grid-cols-3 gap-2 font-mono text-xs">
+                    <div class="p-2 rounded bg-paper border border-line text-center">
+                      <div class="text-[10px] text-secondary">TOTAL TESTS</div>
+                      <div class="text-base font-bold text-graphite">{t.total_count}</div>
+                    </div>
+                    <div class="p-2 rounded bg-paper border border-line text-center">
+                      <div class="text-[10px] text-secondary">PASSED</div>
+                      <div class="text-base font-bold text-success">{t.passed_count}</div>
+                    </div>
+                    <div class="p-2 rounded bg-paper border border-line text-center">
+                      <div class="text-[10px] text-secondary">FAILED</div>
+                      <div class="text-base font-bold text-failure">{t.failed_count}</div>
+                    </div>
+                  </div>
+
+                  {/* Terminal Stderr / Failure Details */}
+                  {t.stderr && (
+                    <div class="space-y-1">
+                      <div class="text-[10px] font-bold text-secondary uppercase font-mono">Terminal Output & Diagnostics</div>
+                      <pre class="p-3 rounded bg-codeBg text-codeText font-mono text-xs overflow-x-auto whitespace-pre-wrap max-h-48">
+                        {t.stderr}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              ))
+            ) : (
+              <div class="h-full flex items-center justify-center text-secondary text-xs italic">
+                No test runs executed yet.
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ----------------- Settings View -----------------
+    function SettingsView({ maxRetries, setMaxRetries, selectedWorkspace, setSelectedWorkspace, workspaces }) {
+      return (
+        <div class="atelier-panel max-w-2xl mx-auto p-6 flex flex-col space-y-6">
+          <div class="border-b border-line pb-3">
+            <h2 class="text-base font-bold text-graphite">Operational Guild Configuration</h2>
+            <p class="text-xs text-secondary">Configure functional parameters, retry policies, and execution boundaries.</p>
+          </div>
+
+          <div class="space-y-4 text-xs">
+            {/* Retry Policy */}
+            <div class="space-y-1.5">
+              <label class="font-bold text-graphite block">Max Adaptive Retries (Default: 2)</label>
+              <p class="text-secondary">Number of diagnostic repairs Samurai and Sentinel attempt before halting.</p>
+              <input
+                type="number"
+                min="1"
+                max="5"
+                value={maxRetries}
+                onChange={(e) => setMaxRetries(Number(e.target.value))}
+                class="w-24 bg-paper border border-line rounded px-3 py-1.5 text-graphite font-mono"
+              />
+            </div>
+
+            {/* Workspace Selector */}
+            <div class="space-y-1.5">
+              <label class="font-bold text-graphite block">Target Workspace / Fixture</label>
+              <p class="text-secondary">Bound filesystem reads and writes strictly to this path.</p>
+              <select
+                value={selectedWorkspace}
+                onChange={(e) => setSelectedWorkspace(e.target.value)}
+                class="w-full bg-paper border border-line rounded px-3 py-2 text-graphite font-mono"
+              >
+                <option value={workspaces.default_workspace}>{workspaces.default_workspace} (Default Project)</option>
+                {workspaces.fixtures?.map(f => (
+                  <option key={f.id} value={f.path}>{f.name} ({f.id})</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Safety Policies */}
+            <div class="space-y-1.5 pt-2 border-t border-line">
+              <label class="font-bold text-graphite block">Enforced Safety Controls (Backend Enforced)</label>
+              <ul class="list-disc list-inside text-secondary space-y-1 font-mono text-[11px]">
+                <li>Strict path containment check (traversal with `../` is blocked)</li>
+                <li>Process execution timeout: 45 seconds</li>
+                <li>Command blacklisting: `rm -rf`, `format`, `mkfs`, `git push --force` blocked</li>
+                <li>Diff secret scanning: AWS keys, GitHub tokens, passwords masked</li>
+                <li>Human approval required for consequential operations</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Render the App
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
